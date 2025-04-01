@@ -1,0 +1,24 @@
+version: '3'
+
+services:
+  human-detector:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: human-detector-202504012242
+    volumes:
+      # Mount the application code for easier development
+      - .:/app
+      # Mount output directory for saving videos
+      - ./output:/app/output
+    environment:
+      # Skip CUDA if not available
+      - NVIDIA_VISIBLE_DEVICES=all
+    # Load environment variables from .env file
+    env_file:
+      - .env
+    # Restart on failure
+    restart: unless-stopped
+    # Expose web interface port
+    ports:
+      - "5005:5005"
