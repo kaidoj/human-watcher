@@ -6,7 +6,8 @@ This project watches a YouTube live stream (webcam) and detects humans in real-t
 
 ## Screenshot
 
-![Human Detection Screenshot](static/screenshot.png)
+![Human Detection Screenshot](static/screenshot1.png)
+![Human Detection Screenshot](static/screenshot2.png)
 
 ## Installation
 
