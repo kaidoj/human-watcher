@@ -125,3 +125,16 @@ output/human_detection_20230815_143027.mp4
 
 This application uses a pre-trained Faster R-CNN model from PyTorch for human detection. 
 The model is optimized for detecting people in various contexts.
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## Disclaimer
+
+**IMPORTANT: This software is provided for educational and research purposes only.**
+
+- This project is designed for analyzing publicly available streams only.
+- Always respect privacy and copyright laws in your jurisdiction.
+- Do not use this software for surveillance or to violate anyone's privacy.
+- The authors and contributors are not responsible for any misuse of this software.
