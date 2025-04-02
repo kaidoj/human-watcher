@@ -96,80 +96,134 @@ class LiveHumanDetector:
         """Main loop to process the video stream"""
         global global_frame, is_processing
         
-        # Get the actual stream URL
-        stream_url = self.get_stream_url()
-        
-        # Open the stream
-        cap = cv2.VideoCapture(stream_url)
-        
-        if not cap.isOpened():
-            print(f"Error: Could not open video stream.")
-            return
+        try:
+            # Get the actual stream URL
+            stream_url = self.get_stream_url()
             
-        print("Starting human detection.")
-        
-        # Create output video writer if save_output is True
-        out = None
-        if self.save_output:
-            # Get stream dimensions
-            width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-            height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-            fps = int(cap.get(cv2.CAP_PROP_FPS))
+            # Open the stream
+            cap = cv2.VideoCapture(stream_url)
             
-            # Create output directory if it doesn't exist
-            os.makedirs('output', exist_ok=True)
+            if not cap.isOpened():
+                print(f"Error: Could not open video stream.")
+                return
+                
+            print("Starting human detection.")
             
-            # Create output filename with timestamp
+            # Create timestamp-based directory for saving frames
             timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-            output_filename = f"output/human_detection_{timestamp}.mp4"
+            output_dir = f"output/session_{timestamp}"
             
-            # Initialize video writer
-            fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-            out = cv2.VideoWriter(output_filename, fourcc, fps, (width, height))
-            print(f"Saving output to {output_filename}")
+            if self.save_output:
+                os.makedirs(output_dir, exist_ok=True)
+                print(f"Saving frames to {output_dir}/")
             
-        frame_count = 0
-        start_time = time.time()
-        
-        while is_processing:
-            ret, frame = cap.read()
-            
+            # Initial frame
+            ret, first_frame = cap.read()
             if not ret:
-                print("Failed to receive frame. Stream may have ended.")
-                break
+                print("Failed to get first frame. Stream may be unavailable.")
+                return
                 
-            # Process every 3rd frame to improve performance
-            if frame_count % 3 == 0:
-                # Detect humans
-                human_boxes = self.detect_humans(frame)
-                
-                # Draw boxes around humans
-                frame_with_boxes = self.draw_boxes(frame, human_boxes)
-                
-                # Calculate and display FPS
-                elapsed_time = time.time() - start_time
-                fps = frame_count / elapsed_time if elapsed_time > 0 else 0
-                cv2.putText(frame_with_boxes, f"FPS: {fps:.2f}", (10, 30), 
-                           cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
-                
-                # Update global frame for web display
-                global_frame = frame_with_boxes.copy()
-                
-                # Save frame to video file if enabled
-                if self.save_output and out is not None:
-                    out.write(frame_with_boxes)
-                    
-                # Print detection info
-                if human_boxes:
-                    print(f"Detected {len(human_boxes)} humans in frame {frame_count}")
+            # Process the first frame
+            human_boxes = self.detect_humans(first_frame)
+            frame_with_boxes = self.draw_boxes(first_frame.copy(), human_boxes)
             
-            frame_count += 1
+            # Set global frame for web display
+            global_frame = frame_with_boxes.copy()
+            
+            # Save first frame as image
+            if self.save_output:
+                first_frame_path = os.path.join(output_dir, f"frame_000001.jpg")
+                cv2.imwrite(first_frame_path, frame_with_boxes)
+                print(f"First frame saved to {first_frame_path}")
+            
+            frame_count = 1  # Start at 1 since we've already processed one frame
+            frames_processed = 1
+            frames_saved = 1
+            start_time = time.time()
+            last_save_time = time.time()
+            
+            while is_processing:
+                ret, frame = cap.read()
                 
-        # Clean up
-        cap.release()
-        if out is not None:
-            out.close()
-        print("Processing complete.")
+                if not ret:
+                    print("Failed to receive frame. Stream may have ended.")
+                    # Try to reconnect a few times before giving up
+                    reconnect_attempts = 0
+                    while reconnect_attempts < 3 and not ret:
+                        print(f"Attempt {reconnect_attempts + 1} to reconnect...")
+                        time.sleep(2)
+                        cap.release()
+                        cap = cv2.VideoCapture(stream_url)
+                        ret, frame = cap.read()
+                        reconnect_attempts += 1
+                        
+                    if not ret:
+                        break
+                
+                # Process every 10th frame to reduce disk usage while maintaining reasonable sampling
+                if frame_count % 10 == 0:
+                    # Detect humans
+                    human_boxes = self.detect_humans(frame)
+                    
+                    # Create a copy of the frame before drawing
+                    processed_frame = frame.copy()
+                    
+                    # Draw boxes around humans
+                    self.draw_boxes(processed_frame, human_boxes)
+                    
+                    # Calculate and display FPS
+                    current_time = time.time()
+                    elapsed_time = current_time - start_time
+                    if elapsed_time > 0:
+                        fps_calc = frames_processed / elapsed_time
+                        cv2.putText(processed_frame, f"FPS: {fps_calc:.2f}", (10, 30), 
+                                  cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+                    
+                    # Add timestamp to the frame
+                    frame_timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                    cv2.putText(processed_frame, frame_timestamp, (10, processed_frame.shape[0] - 10),
+                               cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
+                    
+                    # Update global frame for web display
+                    global_frame = processed_frame
+                    
+                    # Save frame to image file if enabled
+                    # Save only frames with humans or periodically (every 5 seconds)
+                    if self.save_output and (human_boxes or current_time - last_save_time > 5):
+                        try:
+                            frame_filename = os.path.join(output_dir, f"frame_{frames_saved:06d}.jpg")
+                            cv2.imwrite(frame_filename, processed_frame)
+                            frames_saved += 1
+                            last_save_time = current_time
+                            
+                            # Log only when humans are detected
+                            if human_boxes:
+                                print(f"Detected {len(human_boxes)} humans in frame {frame_count}, saved to {frame_filename}")
+                        except Exception as e:
+                            print(f"Error saving frame: {e}")
+                    
+                    frames_processed += 1
+                
+                frame_count += 1
+                
+                # Add a small sleep to avoid maxing out CPU
+                time.sleep(0.01)
+                
+        except Exception as e:
+            print(f"Error during processing: {str(e)}")
+            import traceback
+            traceback.print_exc()
+        finally:
+            # Clean up
+            if 'cap' in locals() and cap is not None:
+                cap.release()
+                
+            if self.save_output and 'output_dir' in locals() and os.path.exists(output_dir):
+                # Check if any frames were saved
+                saved_files = os.listdir(output_dir)
+                print(f"Processing complete. {len(saved_files)} frames saved to {output_dir}/")
+            else:
+                print("Processing complete. No frames were saved.")
 
 def generate_frames():
     """Generate frames for the web stream"""

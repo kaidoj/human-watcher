@@ -1,6 +1,6 @@
 # YouTube Live Webcam Human Detector
 
-This project watches a YouTube live stream (webcam) and detects humans in real-time, drawing bounding boxes around them and saving the output to a video file. It also provides a web interface to view the processed stream in real-time.
+This project watches a YouTube live stream (webcam) and detects humans in real-time, drawing bounding boxes around them and saving the processed frames as images. It also provides a web interface to view the processed stream in real-time.
 
 **I'm just doing this for fun. This is not for any other use.**
 
@@ -102,10 +102,24 @@ The following environment variables can be set in the `.env` file:
 
 ## Output
 
-The processed video is saved to the `output` directory with a timestamp in the filename. For example:
+The processed frames are saved to timestamped directories in the `output` folder:
+
 ```
-output/human_detection_20230815_143027.mp4
+output/session_20230815_143027/
+  ├── frame_000001.jpg
+  ├── frame_000002.jpg
+  ├── frame_000003.jpg
+  └── ...
 ```
+
+Frames are saved in the following cases:
+- When humans are detected in the frame
+- Periodically (every 5 seconds) to maintain context
+
+Each saved frame includes:
+- Bounding boxes around detected humans
+- The current FPS calculation
+- A timestamp showing when the frame was captured
 
 ## Requirements
 
@@ -128,7 +142,7 @@ The model is optimized for detecting people in various contexts.
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the MIT License - see the [LICENSE](LICENSE.md) file for details.
 
 ## Disclaimer
 
